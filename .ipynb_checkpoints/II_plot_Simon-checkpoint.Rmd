@@ -1,0 +1,406 @@
+---
+title: "batch_1_Simon_Notebook"
+output: html_notebook
+---
+```{r}
+#import libraries
+library(psych)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(readr)
+
+```
+
+
+```{r}
+############################ main statistics ##############################
+#1.0 prepare data frame structure
+results <- data.frame(
+  Subject = factor(),
+  Session = factor(),
+  M_inv_cong = numeric(),
+  M_inv_inc = numeric(),
+  DeltaRT = numeric(),
+  Pvalue = numeric())
+
+
+#2.0 loop over subjects and sessions
+for (sub in 1:10) {
+  for (ses in 1:10) {
+  #build dynamic name for files
+    sub_id <- sprintf("%03d", sub)
+    ses_id <- sprintf("%02d", ses)
+    file_name <- paste0("sub-", sub_id, "_ses-", ses_id, "_task-simon_events.tsv")
+    
+    #load data
+    data <- read.delim(file_name)
+      
+    #remove rows with NaN
+    data <- data[!is.na(data$response_time), ]
+      
+    #separate congruent and incongruent trials
+    congruent <- data[data$trial_type %in% c("greenleft", "redright"), ]
+    incongruent <- data[data$trial_type %in% c("greenright", "redleft"), ]
+    temp_M_inv_cong <- mean(1/congruent$response_time)
+    temp_M_inv_inc <- mean(1/incongruent$response_time)
+    
+    #compute delta of mean RTs
+    delta_RT <- temp_M_inv_inc - temp_M_inv_cong
+        
+    #run t-test between conditions
+    t_test <- t.test(incongruent$response_time, congruent$response_time)
+        
+    #save results
+    results <- rbind(results, data.frame(
+          Subject = sub,
+          Session = ses,
+          M_inv_cong = temp_M_inv_cong,
+          M_inv_inc = temp_M_inv_inc,
+          DeltaRT = delta_RT,
+          PValue = t_test$p.value
+    ))
+  }
+}
+
+#3.0 view and export results
+print(results)
+write.table(results, "simon_invRT.csv", sep = ";", row.names = FALSE, col.names = TRUE)
+
+```
+
+
+```{r}
+################## descriptive statistics by subject ##########################
+#1.0 get descriptive stats by subject
+results <- read_delim("C:/Users/Laura/Desktop/master_project/LNCO_fingerprint_DenseMapping/4_Simon_task/raw_data/simon_invRT.csv", delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+results$Subject <- as.factor(results$Subject)
+stats_Simon_sub <- describeBy(results$DeltaRT, results$Subject, mat = TRUE, digits = 4)
+hist(mean_sub$mean, xlab = "Δ RT", ylab = "frequency", main = "distribution of Δ RT")
+
+#save as CSV
+write.csv(stats_Simon_sub, "stats_Simon_sub.csv", row.names = TRUE)
+
+# quick visualisation
+# plot mean
+p = ggplot(stats_Simon_sub, aes(x = group1, y = mean)) +
+  geom_line(color = "#2C3E50", size = 1) +    
+  geom_point(color = "#E74C3C", size = 2) +             
+  labs(title = "distribution of average Δ RT (1/incongruent - 1/congruent)",
+    x = "subject", 
+    y = NULL,
+  ) +
+  theme_minimal(base_size = 14) + 
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(face = "plain", size = 10),
+    panel.grid.minor = element_blank()
+  )
+print(p)
+
+
+# plot sd
+p = ggplot(stats_Simon_sub, aes(x = group1, y = sd)) +
+  geom_line(color = "#2C3E50", size = 1) +    
+  geom_point(color = "#E74C3C", size = 2) +             
+  labs(title = "distribution of Δ RT standard deviation",
+    x = "subject", 
+    y = "sd",
+  ) +
+  theme_minimal(base_size = 14) + 
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(face = "plain", size = 10),
+    panel.grid.minor = element_blank()
+  )
+print(p)
+
+
+#run ANOVA and perform Tukey HSD for multiple comparisons
+aov1 <- aov(DeltaRT ~ Subject, data = results) #p-value = 0.000
+summary(aov1)
+tukey_res <- TukeyHSD(aov1) #p-value significative between sub 2 and others
+print(tukey_res) # p-value < 0.01: 9-2
+
+```
+
+```{r}
+################################## boxplot per subject ################################
+#1.0 compute confidence interval
+# subject must be a factor
+summary_df <- results %>%
+  group_by(Subject) %>%
+  summarise(
+    mean = mean(DeltaRT),
+    se = sd(DeltaRT) / sqrt(n()),
+    ci = qt(0.975, df = n() - 1) * se,
+    ymin = mean - ci,
+    ymax = mean + ci
+  )
+
+
+# boxplot by Subject
+results$Subject = as.factor(results$Subject)
+p_boxplot <- ggplot(results, aes(x = Subject, y = DeltaRT, fill = Subject)) +
+  geom_boxplot(
+    color = "black",
+    alpha = 0.9,
+    coef = 0,
+    outlier.shape = NA,
+    width = 0.6
+  ) +
+  geom_jitter(
+    width = 0.1,
+    size = 1.8,
+    alpha = 0.6,
+    shape = 16,
+    color = "gray20"
+  ) +
+  geom_errorbar(
+    data = summary_df,
+    aes(x = Subject, ymin = ymin, ymax = ymax),
+    width = 0.15,
+    color = "black",
+    size = 0.6,
+    inherit.aes = FALSE
+  ) +
+  scale_fill_viridis_d(option = "D", begin = 0.1, end = 0.8, direction = 1) +
+  scale_x_discrete(drop = FALSE) +
+  labs(
+    title = "Distribution of Simon task performance per subject",
+    x = "Subject",
+    y = expression(Delta ~ "1/RT (s)")
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20, face = "plain"),
+    axis.title.x = element_text(face = "plain", margin = margin(t = 12), size = 10),
+    axis.title.y = element_text(face = "plain", margin = margin(r = 12), size = 10),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    legend.position = "none"
+  )
+
+# show plot
+plot(p_boxplot)
+
+ggsave("ΔRT_plot_bysub.png", width = 10, height = 7, dpi = 300)
+
+```
+
+
+```{r}
+################## descriptive statistics by session ##########################
+#2.0 descriptive stats by session
+results$Session <- as.factor(results$Session)
+stats_Simon_ses <- describeBy(results$DeltaRT, results$Session, mat = TRUE, digits = 4)
+
+#save as CSV
+write.csv(stats_Simon_ses, "stats_Simon_ses.csv", row.names = TRUE)
+
+# quick visualisation
+# plot mean
+p = ggplot(stats_Simon_ses, aes(x = group1, y = mean)) +
+  geom_line(color = "#2C3E50", size = 1) +    
+  geom_point(color = "#E3C", size = 2) +             
+  labs(title = "distribution of average Δ RT (1/incongruent - 1/congruent)",
+    x = "session", 
+    y = NULL,
+  ) +
+  theme_minimal(base_size = 14) + 
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(face = "plain", size = 10),
+    panel.grid.minor = element_blank()
+  )
+print(p)
+
+# plot sd
+p = ggplot(mean_ses, aes(x = group1, y = sd)) +
+  geom_line(color = "#2C3E50", size = 1) +    
+  geom_point(color = "#E3C", size = 2) +             
+  labs(title = "distribution of Δ RT standard deviation",
+    x = "session", 
+    y = "sd",
+  ) +
+  theme_minimal(base_size = 14) + 
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(face = "plain", size = 10),
+    panel.grid.minor = element_blank()
+  )
+print(p)
+
+#run ANOVA and perform Tukey HSD for multiple comparisons
+aov1 <- aov(DeltaRT ~ Session, data = results) #p-value = 0.000
+summary(aov1)
+tukey_res <- TukeyHSD(aov1)
+print(tukey_res) #p-value < 0.01: 6-1, 6-2
+
+
+```
+
+
+```{r}
+################################## boxplot per session ################################
+#1.0 compute confidence interval
+# session must be a factor
+results$Session = as.factor(results$Session)
+summary_df <- results %>%
+  group_by(Session) %>%
+  summarise(
+    mean = mean(DeltaRT),
+    se = sd(DeltaRT) / sqrt(n()),
+    ci = qt(0.975, df = n() - 1) * se,
+    ymin = mean - ci,
+    ymax = mean + ci
+  )
+
+# boxplot by session
+p_boxplot <- ggplot(results, aes(x = Session, y = DeltaRT, fill = Session)) +
+  geom_boxplot(
+    color = "black",
+    alpha = 0.9,
+    coef = 0,
+    outlier.shape = NA,
+    width = 0.6
+  ) +
+  geom_jitter(
+    width = 0.1,
+    size = 1.8,
+    alpha = 0.6,
+    shape = 16,
+    color = "gray20"
+  ) +
+  geom_errorbar(
+    data = summary_df,
+    aes(x = Session, ymin = ymin, ymax = ymax),
+    width = 0.15,
+    color = "black",
+    size = 0.6,
+    inherit.aes = FALSE
+  ) +
+  scale_fill_viridis_d(option = "D", begin = 0.1, end = 0.8, direction = 1) +
+  scale_x_discrete(drop = FALSE) +
+  labs(
+    title = "Distribution of Simon task performance per session",
+    x = "Session",
+    y = expression(Delta ~ "1/RT (s)")
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20, face = "plain"),
+    axis.title.x = element_text(face = "plain", margin = margin(t = 12), size = 10),
+    axis.title.y = element_text(face = "plain", margin = margin(r = 12), size = 10),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    legend.position = "none"
+  )
+
+# show plot
+plot(p_boxplot)
+
+ggsave("ΔRT_plot_byses.png", width = 10, height = 7, dpi = 300)
+
+```
+
+
+```{r}
+####################### plot subject and session #######################
+# plot
+p <- ggplot(results, aes(x = Subject, y = DeltaRT, fill = Session)) +
+  geom_col(width = 0.6, position = position_dodge(width = 0.7)) +
+  labs(
+    x = "Subject",
+     title = expression(Delta * RT ~ "(" * 1 / RT[italic(incongruent)] - 1 / RT[italic(congruent)] * ")" ~ "per Subject and Session"),
+    fill = "Session") +
+  scale_fill_viridis_d(option = "D") +  # Use discrete viridis palette
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.title.x = element_text(face = "plain", margin = margin(t = 8), size = 10),
+    axis.title.y = element_text(face = "plain", margin = margin(r = 8), size = 10),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+
+# Show the plot and save
+print(p)
+ggsave("delta_RT_sub&ses.png", plot = p, width = 10, height = 6, dpi = 300)
+
+
+```
+
+```{r}
+################ plot delta RT per subject and session #######################
+#session as integer to sort sessions in plot
+results$Session <- as.integer(as.character(results$Session))
+ggplot(results, aes(x = Session, y = DeltaRT, group = Subject, color = Subject)) +
+  geom_line() +       
+  geom_point(size = 2) +       
+  stat_summary(
+    aes(group = 1), 
+    fun = mean, 
+    geom = "line", 
+    color = "black",
+    size = 0.7
+  ) + 
+  stat_summary(
+    aes(group = 1), 
+    fun = mean, 
+    geom = "point", 
+    color = "black", 
+    size = 2
+  ) + 
+   scale_x_continuous(breaks = scales::pretty_breaks(n = length(unique(results$Session)))) +
+  labs(
+    title = expression("Simon task performance:" ~ Delta *  RT ~ "(" * 1 / RT[italic(incongruent)] - 1 / RT[italic(congruent)] * ")"),
+    x = "Session",
+    y = "Δ 1/RT (s)",
+    color = "Subject"
+  ) +
+  scale_color_viridis_d(option = "D") +  # Use discrete viridis palette
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "plain"),
+    axis.title.x = element_text(face = "plain", margin = margin(t = 8), size = 10),
+    axis.title.y = element_text(face = "plain", margin = margin(r = 8), size = 10),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+
+ggsave("delta_RT_ses&sub.png", width = 10, height = 7, dpi = 300)
+```
+
+
+```{r}
+########################## plot all data points ########################## 
+# per session
+results$Session = as.factor(results$Session)
+ggplot(data = results,
+  mapping = aes(x = Subject, y = DeltaRT)) +
+  geom_point(mapping = aes(color = Session))
+
+# per subject
+results$Subject = as.factor(results$Subject)
+ggplot(data = results,
+  mapping = aes(x = Session, y = DeltaRT)) +
+  geom_point(mapping = aes(color = Subject))
+
+```
+

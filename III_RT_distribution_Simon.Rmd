@@ -1,0 +1,133 @@
+---
+title: "R Notebook with Simon's RT histograms"
+output: html_notebook
+---
+
+```{r}
+for (sub in 1:10) {
+  for (ses in 1:10) {
+    
+    # build dynamic name for files
+    sub_id <- sprintf("%03d", sub)
+    ses_id <- sprintf("%02d", ses)
+    file_name <- paste0("sub-", sub_id, "_ses-", ses_id, "_task-simon_events.tsv")
+    
+    # load data
+    data <- read.delim(file_name)
+    
+    # remove rows with NaN
+    data <- data[!is.na(data$response_time), ]
+    
+    # separate congruent and incongruent trials
+    congruent <- data[data$trial_type %in% c("greenleft", "redright"), ]
+    incongruent <- data[data$trial_type %in% c("greenright", "redleft"), ]
+    
+    # all trials
+    p <- ggplot(data, aes(x = response_time)) + 
+      geom_histogram(binwidth = 0.05, fill = "#333399", color = "black", size = 0.3, alpha = 0.8) +
+      scale_x_continuous(limits = c(0, 2)) +
+      labs(
+        title = "Reaction Time Distribution",
+        x = "RT (s)",
+        y = "Frequency"
+      ) +
+      theme_classic(base_size = 14) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.title = element_text(face = "bold"),
+        axis.text = element_text(color = "black"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.5)
+      )
+    plt_name1 <- paste0("sub-", sub_id, "_ses-", ses_id, "_histogram_RT_all.png")
+    ggsave(plt_name1, plot = p, width = 6, height = 4, dpi = 400)
+    
+    # congruent trials
+    q <- ggplot(congruent, aes(x = response_time)) + 
+      geom_histogram(binwidth = 0.05, fill = "#333399", color = "black", size = 0.3, alpha = 0.8) +
+      scale_x_continuous(limits = c(0, 2)) +
+      labs(
+        title = "Reaction Time Distribution for Congruent Trials",
+        x = "RT (s)",
+        y = "Frequency"
+      ) +
+      theme_classic(base_size = 14) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.title = element_text(face = "bold"),
+        axis.text = element_text(color = "black"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.5)
+      )
+    plt_name2 <- paste0("sub-", sub_id, "_ses-", ses_id, "_histogram_RT_cong.png")
+    ggsave(plt_name2, plot = q, width = 6, height = 4, dpi = 300)
+    
+    # incongruent trials
+    r <- ggplot(incongruent, aes(x = response_time)) + 
+      geom_histogram(binwidth = 0.05, fill = "#333399", color = "black", size = 0.3, alpha = 0.8) +
+      scale_x_continuous(limits = c(0, 2)) +
+      labs(
+        title = "Reaction Time Distribution for Incongruent Trials",
+        x = "RT (s)",
+        y = "Frequency"
+      ) +
+      theme_classic(base_size = 14) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.title = element_text(face = "bold"),
+        axis.text = element_text(color = "black"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.5)
+      )
+    plt_name3 <- paste0("sub-", sub_id, "_ses-", ses_id, "_histogram_RT_inc.png")
+    ggsave(plt_name3, plot = r, width = 6, height = 4, dpi = 300)
+  }
+}
+
+```
+
+
+```{r}
+for (sub in 1:10) {
+  for (ses in 1:10) {
+    
+    # build dynamic name for files
+    sub_id <- sprintf("%03d", sub)
+    ses_id <- sprintf("%02d", ses)
+    file_name <- paste0("sub-", sub_id, "_ses-", ses_id, "_task-simon_events.tsv")
+    
+    # load data
+    data <- read.delim(file_name)
+    
+    # remove rows with NaN
+    data <- data[!is.na(data$response_time), ]
+    
+    # separate congruent and incongruent trials
+    congruent <- data[data$trial_type %in% c("greenleft", "redright"), ]
+    incongruent <- data[data$trial_type %in% c("greenright", "redleft"), ]
+    
+    # incongruent trials
+    r <- ggplot(incongruent, aes(x = response_time)) + 
+      geom_histogram(binwidth = 0.05, fill = "#333399", color = "black", size = 0.3, alpha = 0.8) +
+      scale_x_continuous(limits = c(0, 2)) +
+      labs(
+        title = "Reaction Time Distribution for Incongruent Trials",
+        x = "RT (s)",
+        y = "Frequency"
+      ) +
+      theme_classic(base_size = 14) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.title = element_text(face = "bold"),
+        axis.text = element_text(color = "black"),
+        panel.border = element_rect(color = "black", fill = NA, size = 0.5)
+      )
+    plt_name3 <- paste0("sub-", sub_id, "_ses-", ses_id, "_histogram_RT_inc.png")
+    ggsave(plt_name3, plot = r, width = 6, height = 4, dpi = 300)
+  }
+}
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
